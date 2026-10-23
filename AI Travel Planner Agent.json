@@ -1,0 +1,556 @@
+{
+  "name": "AI Travel Planner Agent",
+  "nodes": [
+    {
+      "parameters": {
+        "formTitle": "AI Travel Planner",
+        "formDescription": "Tell us about your trip and get an itinerary by email.",
+        "formFields": {
+          "values": [
+            {
+              "fieldLabel": "Name",
+              "requiredField": true
+            },
+            {
+              "fieldLabel": "Email",
+              "fieldType": "email",
+              "requiredField": true
+            },
+            {
+              "fieldLabel": "Destination",
+              "placeholder": "Goa, Jaipur, Manali, Munnar, Pondicherry, Delhi or any city",
+              "requiredField": true
+            },
+            {
+              "fieldLabel": "Start Date",
+              "fieldType": "date",
+              "requiredField": true
+            },
+            {
+              "fieldLabel": "Number of Days",
+              "fieldType": "number",
+              "requiredField": true
+            },
+            {
+              "fieldLabel": "Budget (INR)",
+              "fieldType": "number",
+              "requiredField": true
+            },
+            {
+              "fieldLabel": "Interests",
+              "placeholder": "e.g. beaches, food, history, adventure",
+              "requiredField": true
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "500ebfd7-e69b-40a7-9195-60f50d84e022",
+      "name": "On form submission",
+      "type": "n8n-nodes-base.formTrigger",
+      "typeVersion": 2.2,
+      "position": [
+        0,
+        0
+      ],
+      "webhookId": "3db9a849-f236-4d92-a2d2-c87bf49b2a4e"
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=Plan a trip with these details:\nTraveller: {{ $json['Name'] }}\nDestination: {{ $json['Destination'] }}\nStart date: {{ $json['Start Date'] }}\nNumber of days: {{ $json['Number of Days'] }}\nTotal budget (INR): {{ $json['Budget (INR)'] }}\nInterests: {{ $json['Interests'] }}",
+        "hasOutputParser": true,
+        "options": {
+          "systemMessage": "You are an AI Travel Planner Agent. Your goal is to create a practical, budget-aware day-wise itinerary.\n\nFollow these rules:\n1. Use the 'travel_dataset' tool FIRST with the destination city to get places, entry fees, time needed and average hotel cost.\n2. If the city is not in the dataset, use the Wikipedia tool to find top attractions and estimate costs sensibly.\n3. If the trip starts within the next 14 days, use 'geocode_city' to get coordinates and then 'weather_forecast' for the travel dates, and write a weather note. If the dates are further away, give typical seasonal weather instead and say so.\n4. Match places to the traveller's interests and group nearby/same-category places on the same day. Do not plan more than 3 to 4 activities per day.\n5. Use the Calculator tool to total hotel (nights = days - 1, minimum 1) + entry fees + estimated food and local transport (about 1200 INR per day). Compare against the budget.\n6. If the total exceeds the budget, revise the plan (cheaper activities, fewer paid attractions) and recalculate until it fits, or clearly say it cannot fit and suggest the minimum budget.\n7. Return ONLY the structured JSON requested. All costs are in INR.",
+          "maxIterations": 12
+        }
+      },
+      "id": "830cad2d-c32d-4fd5-bccf-6bb397993a27",
+      "name": "Travel Planner Agent",
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 1.7,
+      "position": [
+        304,
+        0
+      ],
+      "retryOnFail": true,
+      "maxTries": 4,
+      "waitBetweenTries": 5000
+    },
+    {
+      "parameters": {
+        "modelName": "models/gemini-3.5-flash-lite",
+        "options": {
+          "temperature": 0.4
+        }
+      },
+      "id": "427b6fae-caeb-468e-ab80-b3583ec76878",
+      "name": "Google Gemini Chat Model",
+      "type": "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+      "typeVersion": 1,
+      "position": [
+        64,
+        320
+      ],
+      "credentials": {
+        "googlePalmApi": {
+          "id": "FiUyFZX7AirrEdVc",
+          "name": "Google Gemini(PaLM) Api account 3"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "sessionIdType": "customKey",
+        "sessionKey": "={{ $('On form submission').item.json.Email }}"
+      },
+      "id": "1c6fe98a-1030-4457-a3af-087897669126",
+      "name": "Window Buffer Memory",
+      "type": "@n8n/n8n-nodes-langchain.memoryBufferWindow",
+      "typeVersion": 1.3,
+      "position": [
+        240,
+        320
+      ]
+    },
+    {
+      "parameters": {
+        "descriptionType": "manual",
+        "toolDescription": "Dataset of tourist places with Category, EntryFee_INR, TimeNeeded_Hrs, AvgHotelPerNight_INR and BestSeason. Call with a city name to get its places.",
+        "documentId": {
+          "__rl": true,
+          "value": "1ZwXbtELLo08HhoJZXGGEaRaoczCi3Yw0PU8skoBc_WE",
+          "mode": "list",
+          "cachedResultName": "Ai travel planner dataset",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1ZwXbtELLo08HhoJZXGGEaRaoczCi3Yw0PU8skoBc_WE/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 288423494,
+          "mode": "list",
+          "cachedResultName": "travel_places_dataset",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1ZwXbtELLo08HhoJZXGGEaRaoczCi3Yw0PU8skoBc_WE/edit#gid=288423494"
+        },
+        "options": {}
+      },
+      "id": "552c142e-d425-4941-a448-17c02fcb895b",
+      "name": "travel_dataset",
+      "type": "n8n-nodes-base.googleSheetsTool",
+      "typeVersion": 4.5,
+      "position": [
+        432,
+        320
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "zS4of4RTObEmvRoa",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "toolDescription": "Get latitude and longitude of a city. Returns results[0].latitude and results[0].longitude.",
+        "url": "https://geocoding-api.open-meteo.com/v1/search",
+        "sendQuery": true,
+        "parametersQuery": {
+          "values": [
+            {
+              "name": "name"
+            },
+            {
+              "name": "count",
+              "valueProvider": "fieldValue",
+              "value": "1"
+            }
+          ]
+        }
+      },
+      "id": "9e42173c-2a82-43c2-8af9-125bfdf53916",
+      "name": "geocode_city",
+      "type": "@n8n/n8n-nodes-langchain.toolHttpRequest",
+      "typeVersion": 1.1,
+      "position": [
+        608,
+        320
+      ]
+    },
+    {
+      "parameters": {
+        "toolDescription": "Daily weather forecast (max 16 days ahead) for given coordinates and date range. Dates in YYYY-MM-DD.",
+        "url": "https://api.open-meteo.com/v1/forecast",
+        "sendQuery": true,
+        "parametersQuery": {
+          "values": [
+            {
+              "name": "latitude"
+            },
+            {
+              "name": "longitude"
+            },
+            {
+              "name": "start_date"
+            },
+            {
+              "name": "end_date"
+            },
+            {
+              "name": "daily",
+              "valueProvider": "fieldValue",
+              "value": "temperature_2m_max,temperature_2m_min,precipitation_probability_max"
+            },
+            {
+              "name": "timezone",
+              "valueProvider": "fieldValue",
+              "value": "auto"
+            }
+          ]
+        }
+      },
+      "id": "43d88283-fb70-4e86-a335-bdba00cb85ba",
+      "name": "weather_forecast",
+      "type": "@n8n/n8n-nodes-langchain.toolHttpRequest",
+      "typeVersion": 1.1,
+      "position": [
+        784,
+        320
+      ]
+    },
+    {
+      "parameters": {},
+      "id": "5cdd4de1-e7b8-4598-8c6f-62a4928c55a2",
+      "name": "Wikipedia",
+      "type": "@n8n/n8n-nodes-langchain.toolWikipedia",
+      "typeVersion": 1,
+      "position": [
+        960,
+        320
+      ]
+    },
+    {
+      "parameters": {},
+      "id": "63ebff10-86ae-4c01-9cdf-2119a68f146a",
+      "name": "Calculator",
+      "type": "@n8n/n8n-nodes-langchain.toolCalculator",
+      "typeVersion": 1,
+      "position": [
+        1152,
+        320
+      ]
+    },
+    {
+      "parameters": {
+        "jsonSchemaExample": "{\n  \"summary\": \"Short overview of the trip\",\n  \"destination\": \"Goa\",\n  \"day_wise_plan\": [\n    {\n      \"day\": 1,\n      \"title\": \"Beaches and Forts\",\n      \"activities\": [\n        \"Morning: Baga Beach\",\n        \"Afternoon: Fort Aguada\"\n      ],\n      \"approx_cost\": 2500\n    }\n  ],\n  \"estimated_total_cost\": 9800,\n  \"budget_status\": \"Within budget\",\n  \"weather_note\": \"Sunny, 30C, low chance of rain\",\n  \"packing_tips\": [\n    \"Sunscreen\",\n    \"Light cotton clothes\"\n  ]\n}"
+      },
+      "id": "29312cab-fcd5-47bb-80e1-1605560b0087",
+      "name": "Structured Output Parser",
+      "type": "@n8n/n8n-nodes-langchain.outputParserStructured",
+      "typeVersion": 1.2,
+      "position": [
+        1328,
+        320
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const f = $('On form submission').first().json;\nconst o = $json.output || $json;\nconst days = (o.day_wise_plan || []).map(d =>\n  `<h3>Day ${d.day}: ${d.title}</h3><ul>${(d.activities || []).map(a => `<li>${a}</li>`).join('')}</ul><p><b>Approx. cost:</b> &#8377;${d.approx_cost}</p>`\n).join('');\nconst tips = (o.packing_tips || []).map(t => `<li>${t}</li>`).join('');\nconst html = `<div style=\"font-family:Arial,sans-serif;max-width:640px\">\n<h2>Your Travel Plan: ${o.destination || f['Destination']}</h2>\n<p>Hi ${f['Name']},</p><p>${o.summary}</p>\n${days}\n<h3>Weather</h3><p>${o.weather_note}</p>\n<h3>Packing tips</h3><ul>${tips}</ul>\n<h3>Budget</h3><p>Estimated total: <b>&#8377;${o.estimated_total_cost}</b> (your budget: &#8377;${f['Budget (INR)']}) - ${o.budget_status}</p>\n<p>Happy travels!<br>- AI Travel Planner Agent</p></div>`;\nreturn [{ json: {\n  email: f['Email'], name: f['Name'], destination: o.destination || f['Destination'],\n  days: f['Number of Days'], budget: f['Budget (INR)'], total: o.estimated_total_cost,\n  budget_status: o.budget_status, summary: o.summary, html\n}}];"
+      },
+      "id": "10505347-6acc-43c1-9896-9d366ea9e826",
+      "name": "Build Email HTML",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        688,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "sendTo": "={{ $json.email }}",
+        "subject": "={{ 'Your Travel Plan: ' + $json.destination }}",
+        "message": "={{ $json.html }}",
+        "options": {
+          "appendAttribution": false
+        }
+      },
+      "id": "c10addc5-b638-43f4-9bb0-ad1f8fb274e1",
+      "name": "Send Itinerary Email",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [
+        960,
+        0
+      ],
+      "webhookId": "68195f81-b835-417b-986b-5c15bc969813",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "jknEVlwM2Ko9C6lx",
+          "name": "Gmail account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "value": "1ZwXbtELLo08HhoJZXGGEaRaoczCi3Yw0PU8skoBc_WE",
+          "mode": "list",
+          "cachedResultName": "Ai travel planner dataset",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1ZwXbtELLo08HhoJZXGGEaRaoczCi3Yw0PU8skoBc_WE/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 711321238,
+          "mode": "list",
+          "cachedResultName": "Request_log",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1ZwXbtELLo08HhoJZXGGEaRaoczCi3Yw0PU8skoBc_WE/edit#gid=711321238"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {},
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "Timestamp",
+              "displayName": "Timestamp",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Name",
+              "displayName": "Name",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Email",
+              "displayName": "Email",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Days",
+              "displayName": "Days",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Budget",
+              "displayName": "Budget",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Estimate Cost",
+              "displayName": "Estimate Cost",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "budget status",
+              "displayName": "budget status",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Summary",
+              "displayName": "Summary",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "id": "46551dd0-efef-4d56-9522-65c537bfb8fc",
+      "name": "Log Request to Sheet",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        1248,
+        0
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "zS4of4RTObEmvRoa",
+          "name": "Google Sheets account"
+        }
+      }
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "On form submission": {
+      "main": [
+        [
+          {
+            "node": "Travel Planner Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Travel Planner Agent": {
+      "main": [
+        [
+          {
+            "node": "Build Email HTML",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Google Gemini Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Travel Planner Agent",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Window Buffer Memory": {
+      "ai_memory": [
+        [
+          {
+            "node": "Travel Planner Agent",
+            "type": "ai_memory",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "travel_dataset": {
+      "ai_tool": [
+        [
+          {
+            "node": "Travel Planner Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "geocode_city": {
+      "ai_tool": [
+        [
+          {
+            "node": "Travel Planner Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "weather_forecast": {
+      "ai_tool": [
+        [
+          {
+            "node": "Travel Planner Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Wikipedia": {
+      "ai_tool": [
+        [
+          {
+            "node": "Travel Planner Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Calculator": {
+      "ai_tool": [
+        [
+          {
+            "node": "Travel Planner Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Structured Output Parser": {
+      "ai_outputParser": [
+        [
+          {
+            "node": "Travel Planner Agent",
+            "type": "ai_outputParser",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Email HTML": {
+      "main": [
+        [
+          {
+            "node": "Send Itinerary Email",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send Itinerary Email": {
+      "main": [
+        [
+          {
+            "node": "Log Request to Sheet",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  },
+  "versionId": "ddaeb960-e9e9-4148-a6e8-1324c2b32217",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "4f49ba16a87a8cc6ad0854885a45b95f118e9e740e40e6fccbac144db77a90a9"
+  },
+  "nodeGroups": [],
+  "id": "M3HnIHV7PGq3aVmL",
+  "tags": []
+}
